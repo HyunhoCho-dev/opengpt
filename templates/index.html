@@ -347,6 +347,12 @@
             padding-right: 40px;
         }
 
+        .message-content img {
+            max-width: 300px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
         .message-content h1,
         .message-content h2,
         .message-content h3,
@@ -523,6 +529,57 @@
 
         .model-selector select:hover {
             background: #505363;
+        }
+
+        .image-upload-section {
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .image-upload-section.show {
+            display: block;
+        }
+
+        .image-upload-btn {
+            padding: 8px 16px;
+            background: #40414f;
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 6px;
+            color: #ececf1;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .image-upload-btn:hover {
+            background: #505363;
+        }
+
+        .image-preview {
+            margin-top: 8px;
+            display: none;
+        }
+
+        .image-preview.show {
+            display: block;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,.1);
+        }
+
+        .image-preview .remove-image {
+            margin-top: 8px;
+            padding: 4px 12px;
+            background: #ff6b6b;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
         }
 
         .input-wrapper {
@@ -740,12 +797,25 @@
                 <div class="input-container">
                     <div class="model-selector">
                         <label for="modelSelect">Model:</label>
-                        <select id="modelSelect">
+                        <select id="modelSelect" onchange="handleModelChange()">
                             <option value="gpt-oss-120b">GPT-OSS 120B (Fireworks)</option>
                             <option value="gpt-oss-20b">GPT-OSS 20B</option>
-                            <option value="gemma-3-12b">Gemma 3 12B</option>
+                            <option value="gemma-3-12b">Gemma 3 12B (Vision)</option>
+                            <option value="llama-4-scout">Llama 4 Scout 17B (Vision)</option>
                         </select>
                     </div>
+                    
+                    <div class="image-upload-section" id="imageUploadSection">
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                        <button class="image-upload-btn" onclick="document.getElementById('imageInput').click()">
+                            📷 Upload Image
+                        </button>
+                        <div class="image-preview" id="imagePreview">
+                            <img id="previewImg" src="" alt="Preview">
+                            <button class="remove-image" onclick="removeImage()">Remove</button>
+                        </div>
+                    </div>
+                    
                     <div class="input-wrapper">
                         <textarea 
                             id="chatInput" 
@@ -771,6 +841,7 @@
         let isLoading = false;
         let savedChats = [];
         let currentChatId = null;
+        let selectedImage = null;
 
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -781,7 +852,37 @@
             });
         }
 
-        // 로컬 스토리지에서 채팅 기록 로드
+        function handleModelChange() {
+            const model = document.getElementById('modelSelect').value;
+            const imageSection = document.getElementById('imageUploadSection');
+            
+            if (model === 'gemma-3-12b' || model === 'llama-4-scout') {
+                imageSection.classList.add('show');
+            } else {
+                imageSection.classList.remove('show');
+                removeImage();
+            }
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedImage = e.target.result;
+                document.getElementById('previewImg').src = selectedImage;
+                document.getElementById('imagePreview').classList.add('show');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage() {
+            selectedImage = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('imagePreview').classList.remove('show');
+        }
+
         function loadChatsFromStorage() {
             const saved = localStorage.getItem('newton_chats');
             if (saved) {
@@ -795,7 +896,6 @@
             }
         }
 
-        // 채팅 목록 렌더링
         function renderChatList() {
             const container = document.getElementById('conversationsList');
             container.innerHTML = '';
@@ -823,7 +923,6 @@
             });
         }
 
-        // 채팅 저장
         function saveCurrentChat() {
             if (conversationHistory.length === 0) return;
             
@@ -850,7 +949,6 @@
             renderChatList();
         }
 
-        // 채팅 로드
         function loadChat(chatId) {
             const chat = savedChats.find(c => c.id === chatId);
             if (!chat) return;
@@ -872,7 +970,6 @@
             scrollToBottom();
         }
 
-        // 채팅 삭제
         function deleteChat(event, index) {
             event.stopPropagation();
             if (confirm('이 채팅을 삭제하시겠습니까?')) {
@@ -928,6 +1025,7 @@
             document.getElementById('messagesContainer').innerHTML = '';
             document.getElementById('messagesContainer').style.display = 'none';
             document.getElementById('emptyState').style.display = 'flex';
+            removeImage();
             renderChatList();
             
             if (window.innerWidth <= 768) {
@@ -1018,7 +1116,15 @@
             document.getElementById('emptyState').style.display = 'none';
             document.getElementById('messagesContainer').style.display = 'block';
 
-            addMessage('user', message, false);
+            const userMessageDiv = addMessage('user', message, false);
+            
+            // 이미지가 있으면 표시
+            if (selectedImage) {
+                const img = document.createElement('img');
+                img.src = selectedImage;
+                userMessageDiv.appendChild(img);
+            }
+            
             input.value = '';
             input.style.height = 'auto';
             
@@ -1029,21 +1135,27 @@
             showTyping();
 
             try {
+                const requestData = {
+                    message: message,
+                    history: conversationHistory.slice(0, -1),
+                    model: selectedModel
+                };
+                
+                if (selectedImage && (selectedModel === 'gemma-3-12b' || selectedModel === 'llama-4-scout')) {
+                    requestData.image = selectedImage;
+                }
+
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        message: message,
-                        history: conversationHistory.slice(0, -1),
-                        model: selectedModel
-                    })
+                    body: JSON.stringify(requestData)
                 });
 
                 if (response.status === 401) {
                     alert('인증이 만료되었습니다. 다시 로그인해주세요.');
-                    window.location.href = '/login';
+                    window.location.href = '/login-page';
                     return;
                 }
 
@@ -1086,6 +1198,7 @@
 
                 conversationHistory.push({ role: 'assistant', content: fullResponse });
                 saveCurrentChat();
+                removeImage();
 
             } catch (error) {
                 removeTyping();
@@ -1104,20 +1217,20 @@
                 const contentType = response.headers.get('content-type');
                 
                 if (!contentType || !contentType.includes('application/json')) {
-                    window.location.href = '/login';
+                    window.location.href = '/login-page';
                     return;
                 }
                 
                 const data = await response.json();
                 
                 if (!data.authenticated) {
-                    window.location.href = '/login';
+                    window.location.href = '/login-page';
                 } else {
                     loadChatsFromStorage();
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
-                window.location.href = '/login';
+                window.location.href = '/login-page';
             }
         });
     </script>
