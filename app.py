@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, Response, stream_wit
 import requests
 import json
 import os
+import base64
 from urllib.parse import urlencode
 
 app = Flask(__name__)
@@ -21,15 +22,23 @@ API_URL = "https://router.huggingface.co/v1/chat/completions"
 AVAILABLE_MODELS = {
     'gpt-oss-120b': {
         'name': 'GPT-OSS 120B',
-        'id': 'openai/gpt-oss-120b:fireworks-ai'
+        'id': 'openai/gpt-oss-120b:fireworks-ai',
+        'supports_image': False
     },
     'gpt-oss-20b': {
         'name': 'GPT-OSS 20B',
-        'id': 'openai/gpt-oss-20b'
+        'id': 'openai/gpt-oss-20b',
+        'supports_image': False
     },
     'gemma-3-12b': {
         'name': 'Gemma 3 12B',
-        'id': 'google/gemma-3-12b-it:featherless-ai'
+        'id': 'google/gemma-3-12b-it:featherless-ai',
+        'supports_image': True
+    },
+    'llama-4-scout': {
+        'name': 'Llama 4 Scout 17B',
+        'id': 'meta-llama/Llama-4-Scout-17B-16E-Instruct:fireworks-ai',
+        'supports_image': True
     }
 }
 
@@ -134,16 +143,19 @@ def chat():
     message = data.get('message')
     conversation_history = data.get('history', [])
     selected_model = data.get('model', 'gpt-oss-120b')
+    image_data = data.get('image')  # base64 인코딩된 이미지
     
-    # 선택된 모델 ID 가져오기
-    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'openai/gpt-oss-120b:fireworks-ai')
+    # 선택된 모델 정보 가져오기
+    model_info = AVAILABLE_MODELS.get(selected_model, {})
+    model_id = model_info.get('id', 'openai/gpt-oss-120b:fireworks-ai')
+    supports_image = model_info.get('supports_image', False)
     
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
     
-    # 대화 히스토리를 간단한 텍스트 형식으로 변환
+    # 대화 히스토리 변환
     messages = []
     for msg in conversation_history:
         messages.append({
@@ -151,10 +163,31 @@ def chat():
             "content": msg["content"]
         })
     
-    messages.append({
-        "role": "user",
-        "content": message
-    })
+    # 현재 메시지 구성
+    if supports_image and image_data:
+        # 이미지를 지원하는 모델의 경우
+        user_content = [
+            {
+                "type": "text",
+                "text": message
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_data  # data:image/jpeg;base64,... 형식
+                }
+            }
+        ]
+        messages.append({
+            "role": "user",
+            "content": user_content
+        })
+    else:
+        # 텍스트만 지원하는 모델
+        messages.append({
+            "role": "user",
+            "content": message
+        })
     
     payload = {
         "messages": messages,
@@ -187,7 +220,7 @@ def chat():
                             content = delta.get("content", "")
                             if content:
                                 yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError as e:
+                    except json.JSONDecodeError:
                         continue
         except requests.exceptions.Timeout:
             yield f"data: {json.dumps({'error': 'Request timeout. Please try again.'})}\n\n"
