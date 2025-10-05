@@ -25,7 +25,6 @@
             height: 100vh;
         }
 
-        /* Sidebar */
         .sidebar {
             width: 260px;
             background: #202123;
@@ -80,6 +79,7 @@
             transition: all 0.2s;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
         }
 
@@ -91,7 +91,33 @@
             background: #343541;
         }
 
-        /* Billing Info */
+        .conversation-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .delete-chat-btn {
+            background: transparent;
+            border: none;
+            color: #8e8ea0;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: none;
+            transition: all 0.2s;
+        }
+
+        .conversation-item:hover .delete-chat-btn {
+            display: block;
+        }
+
+        .delete-chat-btn:hover {
+            color: #ff6b6b;
+            background: rgba(255,107,107,0.1);
+        }
+
         .billing-info {
             padding: 12px;
             margin: 8px;
@@ -113,21 +139,6 @@
             justify-content: space-between;
             margin: 4px 0;
             color: #c5c5d2;
-        }
-
-        .billing-info .usage-bar {
-            width: 100%;
-            height: 4px;
-            background: #40414f;
-            border-radius: 2px;
-            margin-top: 4px;
-            overflow: hidden;
-        }
-
-        .billing-info .usage-fill {
-            height: 100%;
-            background: #10a37f;
-            transition: width 0.3s;
         }
 
         .sidebar-footer {
@@ -189,7 +200,6 @@
             color: #ececf1;
         }
 
-        /* Main Chat */
         .main-panel {
             flex: 1;
             display: flex;
@@ -475,7 +485,6 @@
             30% { opacity: 1; transform: translateY(-10px); }
         }
 
-        /* Input Area */
         .input-section {
             background: #343541;
             padding: 12px 0 24px;
@@ -576,7 +585,6 @@
             margin-top: 12px;
         }
 
-        /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -594,7 +602,6 @@
             background: #6e6e80;
         }
 
-        /* Mobile Optimization */
         @media (max-width: 768px) {
             .sidebar {
                 position: fixed;
@@ -673,22 +680,25 @@
             </div>
             
             <div class="billing-info" id="billingInfo">
-                <div class="plan-name">Loading...</div>
-            </div>
-
-            <div class="conversations" id="conversationsList">
-                <div class="conversation-item active">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                    </svg>
-                    New Chat
+                <div class="plan-name">Standard Plan</div>
+                <div class="usage-item">
+                    <span>Inference Usage</span>
+                    <span>Available</span>
                 </div>
             </div>
+
+            <div class="conversations" id="conversationsList"></div>
             
             <div class="sidebar-footer">
                 <div class="user-info">
-                    <div class="user-avatar" id="userAvatar">U</div>
-                    <span class="user-name" id="userName">User</span>
+                    <div class="user-avatar" id="userAvatar">
+                        {% if user and user.avatar %}
+                        <img src="{{ user.avatar }}" alt="Avatar">
+                        {% else %}
+                        {{ user.username[0].upper() if user and user.username else 'U' }}
+                        {% endif %}
+                    </div>
+                    <span class="user-name" id="userName">{{ user.name if user else 'User' }}</span>
                     <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
             </div>
@@ -759,6 +769,8 @@
     <script>
         let conversationHistory = [];
         let isLoading = false;
+        let savedChats = [];
+        let currentChatId = null;
 
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -769,46 +781,110 @@
             });
         }
 
-        async function loadBillingInfo() {
-            try {
-                const response = await fetch('/get-billing-info');
-                const data = await response.json();
-                
-                if (data.error) {
-                    document.getElementById('billingInfo').innerHTML = `
-                        <div class="plan-name">Unable to load billing info</div>
-                    `;
-                    return;
+        // 로컬 스토리지에서 채팅 기록 로드
+        function loadChatsFromStorage() {
+            const saved = localStorage.getItem('newton_chats');
+            if (saved) {
+                try {
+                    savedChats = JSON.parse(saved);
+                    renderChatList();
+                } catch (e) {
+                    console.error('Failed to load chats:', e);
+                    savedChats = [];
                 }
+            }
+        }
 
-                const planName = data.plan || 'Free';
-                const usage = data.usage || {};
-                const limits = data.limits || {};
-
-                let usageHTML = `<div class="plan-name">${planName} Plan</div>`;
-                
-                if (usage.inference) {
-                    const used = usage.inference.used || 0;
-                    const limit = limits.inference || 1000;
-                    const percentage = Math.min((used / limit) * 100, 100);
-                    
-                    usageHTML += `
-                        <div class="usage-item">
-                            <span>Inference Usage</span>
-                            <span>${used} / ${limit}</span>
-                        </div>
-                        <div class="usage-bar">
-                            <div class="usage-fill" style="width: ${percentage}%"></div>
-                        </div>
-                    `;
-                }
-
-                document.getElementById('billingInfo').innerHTML = usageHTML;
-            } catch (error) {
-                console.error('Failed to load billing info:', error);
-                document.getElementById('billingInfo').innerHTML = `
-                    <div class="plan-name">Billing info unavailable</div>
+        // 채팅 목록 렌더링
+        function renderChatList() {
+            const container = document.getElementById('conversationsList');
+            container.innerHTML = '';
+            
+            savedChats.forEach((chat, index) => {
+                const div = document.createElement('div');
+                div.className = `conversation-item ${chat.id === currentChatId ? 'active' : ''}`;
+                div.innerHTML = `
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    <span class="conversation-title">${chat.title}</span>
+                    <button class="delete-chat-btn" onclick="deleteChat(event, ${index})">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                    </button>
                 `;
+                div.onclick = (e) => {
+                    if (!e.target.closest('.delete-chat-btn')) {
+                        loadChat(chat.id);
+                    }
+                };
+                container.appendChild(div);
+            });
+        }
+
+        // 채팅 저장
+        function saveCurrentChat() {
+            if (conversationHistory.length === 0) return;
+            
+            const title = conversationHistory[0].content.substring(0, 30) + (conversationHistory[0].content.length > 30 ? '...' : '');
+            
+            if (currentChatId) {
+                const chatIndex = savedChats.findIndex(c => c.id === currentChatId);
+                if (chatIndex !== -1) {
+                    savedChats[chatIndex].history = conversationHistory;
+                    savedChats[chatIndex].updatedAt = Date.now();
+                }
+            } else {
+                currentChatId = Date.now().toString();
+                savedChats.unshift({
+                    id: currentChatId,
+                    title: title,
+                    history: conversationHistory,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                });
+            }
+            
+            localStorage.setItem('newton_chats', JSON.stringify(savedChats));
+            renderChatList();
+        }
+
+        // 채팅 로드
+        function loadChat(chatId) {
+            const chat = savedChats.find(c => c.id === chatId);
+            if (!chat) return;
+            
+            currentChatId = chatId;
+            conversationHistory = chat.history;
+            
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('messagesContainer').style.display = 'block';
+            
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            conversationHistory.forEach(msg => {
+                addMessage(msg.role, msg.content, true);
+            });
+            
+            renderChatList();
+            scrollToBottom();
+        }
+
+        // 채팅 삭제
+        function deleteChat(event, index) {
+            event.stopPropagation();
+            if (confirm('이 채팅을 삭제하시겠습니까?')) {
+                const deletedChatId = savedChats[index].id;
+                savedChats.splice(index, 1);
+                localStorage.setItem('newton_chats', JSON.stringify(savedChats));
+                
+                if (deletedChatId === currentChatId) {
+                    newChat();
+                } else {
+                    renderChatList();
+                }
             }
         }
 
@@ -831,9 +907,12 @@
         }
 
         function newChat() {
+            currentChatId = null;
             conversationHistory = [];
+            document.getElementById('messagesContainer').innerHTML = '';
             document.getElementById('messagesContainer').style.display = 'none';
             document.getElementById('emptyState').style.display = 'flex';
+            renderChatList();
             
             if (window.innerWidth <= 768) {
                 const sidebar = document.getElementById('sidebar');
@@ -990,6 +1069,7 @@
                 }
 
                 conversationHistory.push({ role: 'assistant', content: fullResponse });
+                saveCurrentChat();
 
             } catch (error) {
                 removeTyping();
@@ -999,25 +1079,29 @@
                 isLoading = false;
                 document.getElementById('sendBtn').disabled = false;
                 scrollToBottom();
-                
-                // 사용량 업데이트
-                loadBillingInfo();
             }
         }
 
         window.addEventListener('load', async () => {
             try {
                 const response = await fetch('/check-auth');
+                const contentType = response.headers.get('content-type');
+                
+                if (!contentType || !contentType.includes('application/json')) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (!data.authenticated) {
                     window.location.href = '/login';
                 } else {
-                    // 로그인 상태면 billing 정보 로드
-                    loadBillingInfo();
+                    loadChatsFromStorage();
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
+                window.location.href = '/login';
             }
         });
     </script>
