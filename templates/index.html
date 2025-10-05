@@ -902,14 +902,22 @@
 
         function logout() {
             if (confirm('정말 로그아웃하시겠습니까?')) {
-                // 로컬 스토리지 유지 (채팅 기록 보존)
                 fetch('/logout', {
-                    method: 'GET',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     credentials: 'same-origin'
-                }).then(() => {
-                    window.location.href = '/login';
-                }).catch(() => {
-                    window.location.href = '/login';
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect;
+                    }
+                })
+                .catch(error => {
+                    console.error('Logout error:', error);
+                    window.location.href = '/login-page';
                 });
             }
         }
