@@ -15,21 +15,21 @@ HF_AUTHORIZE_URL = "https://huggingface.co/oauth/authorize"
 HF_TOKEN_URL = "https://huggingface.co/oauth/token"
 HF_USER_URL = "https://huggingface.co/api/whoami-v2"
 
-API_URL = "https://api-inference.huggingface.co/models/"
+API_URL = "https://router.huggingface.co/v1/chat/completions"
 
-# 사용 가능한 모델 목록 (수정됨)
+# 사용 가능한 모델 목록
 AVAILABLE_MODELS = {
-    'qwen-2.5-72b': {
-        'name': 'Qwen 2.5 72B Instruct',
-        'id': 'Qwen/Qwen2.5-72B-Instruct'
+    'gpt-oss-120b': {
+        'name': 'GPT-OSS 120B',
+        'id': 'openai/gpt-oss-120b:fireworks-ai'
     },
-    'llama-3.1-70b': {
-        'name': 'Llama 3.1 70B Instruct',
-        'id': 'meta-llama/Meta-Llama-3.1-70B-Instruct'
+    'gpt-oss-20b': {
+        'name': 'GPT-OSS 20B',
+        'id': 'openai/gpt-oss-20b'
     },
-    'mistral-nemo': {
-        'name': 'Mistral Nemo Instruct',
-        'id': 'mistralai/Mistral-Nemo-Instruct-2407'
+    'gemma-3-12b': {
+        'name': 'Gemma 3 12B',
+        'id': 'google/gemma-3-12b-it:featherless-ai'
     }
 }
 
@@ -96,7 +96,9 @@ def callback():
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    response = redirect(url_for('login'))
+    response.set_cookie('session', '', expires=0)
+    return response
 
 @app.route('/check-auth')
 def check_auth():
@@ -129,67 +131,61 @@ def chat():
     data = request.json
     message = data.get('message')
     conversation_history = data.get('history', [])
-    selected_model = data.get('model', 'qwen-2.5-72b')
+    selected_model = data.get('model', 'gpt-oss-120b')
     
     # 선택된 모델 ID 가져오기
-    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'Qwen/Qwen2.5-72B-Instruct')
+    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'openai/gpt-oss-120b:fireworks-ai')
     
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
     
-    messages = conversation_history + [{"role": "user", "content": message}]
+    # 메시지 포맷 (텍스트만 지원)
+    messages = []
+    for msg in conversation_history:
+        messages.append({
+            "role": msg["role"],
+            "content": msg["content"]
+        })
+    messages.append({
+        "role": "user",
+        "content": message
+    })
     
     payload = {
-        "inputs": message,
-        "parameters": {
-            "max_new_tokens": 2000,
-            "temperature": 0.7,
-            "top_p": 0.95,
-            "return_full_text": False
-        },
-        "stream": True
+        "messages": messages,
+        "model": model_id,
+        "stream": True,
+        "max_tokens": 8000,
+        "temperature": 0.7
     }
     
     def generate():
         try:
-            response = requests.post(
-                f"{API_URL}{model_id}",
-                headers=headers,
-                json=payload,
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                yield f"data: {json.dumps({'error': f'API Error: {response.status_code}'})}\n\n"
-                return
+            response = requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60)
+            response.raise_for_status()
             
             for line in response.iter_lines():
                 if not line:
                     continue
-                try:
-                    line_data = line.decode("utf-8")
-                    if line_data.startswith("data:"):
-                        line_data = line_data[5:].strip()
-                    
-                    chunk = json.loads(line_data)
-                    
-                    if isinstance(chunk, list) and len(chunk) > 0:
-                        content = chunk[0].get("generated_text", "")
-                        if content:
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                    elif "token" in chunk:
-                        content = chunk["token"].get("text", "")
-                        if content:
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                            
-                except json.JSONDecodeError:
-                    continue
-                except Exception as e:
-                    print(f"Stream error: {e}")
-                    continue
-                    
+                if line.startswith(b"data:"):
+                    line_data = line.decode("utf-8").lstrip("data:").strip()
+                    if line_data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(line_data)
+                        if "choices" in chunk and len(chunk["choices"]) > 0:
+                            delta = chunk["choices"][0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield f"data: {json.dumps({'content': content})}\n\n"
+                    except json.JSONDecodeError:
+                        continue
+        except requests.exceptions.Timeout:
+            yield f"data: {json.dumps({'error': 'Request timeout. Please try again.'})}\n\n"
+        except requests.exceptions.RequestException as e:
+            yield f"data: {json.dumps({'error': f'Request failed: {str(e)}'})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
