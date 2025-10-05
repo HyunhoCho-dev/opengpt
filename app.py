@@ -1,52 +1,64 @@
-import os
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, session
 import requests
 import json
+import os
 from urllib.parse import urlencode
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# 환경변수에서 읽어오기 (중요!)
+# HuggingFace OAuth 설정
 HF_CLIENT_ID = os.getenv('HF_CLIENT_ID', 'YOUR_CLIENT_ID_HERE')
 HF_CLIENT_SECRET = os.getenv('HF_CLIENT_SECRET', 'YOUR_CLIENT_SECRET_HERE')
 HF_REDIRECT_URI = os.getenv('HF_REDIRECT_URI', 'http://127.0.0.1:5000/callback')
-
 HF_AUTHORIZE_URL = "https://huggingface.co/oauth/authorize"
 HF_TOKEN_URL = "https://huggingface.co/oauth/token"
 HF_USER_URL = "https://huggingface.co/api/whoami-v2"
+HF_BILLING_URL = "https://huggingface.co/api/billing/subscription"
 
 API_URL = "https://router.huggingface.co/v1/chat/completions"
 
+# 사용 가능한 모델 목록
+AVAILABLE_MODELS = {
+    'gpt-oss-120b': {
+        'name': 'GPT-OSS 120B',
+        'id': 'openai/gpt-oss-120b:fireworks-ai'
+    },
+    'gpt-oss-20b': {
+        'name': 'GPT-OSS 20B',
+        'id': 'openai/gpt-oss-20b'
+    },
+    'gemma-3-12b': {
+        'name': 'Gemma 3 12B',
+        'id': 'google/gemma-3-12b-it'
+    }
+}
+
 @app.route('/')
 def index():
-    # 로그인 여부 확인
     if 'access_token' not in session:
         return redirect(url_for('login'))
-    return render_template('index.html', user=session.get('user'))
+    return render_template('index.html', user=session.get('user'), models=AVAILABLE_MODELS)
 
 @app.route('/login')
 def login():
-    # HuggingFace OAuth 로그인 페이지로 리다이렉트
     params = {
         'client_id': HF_CLIENT_ID,
         'redirect_uri': HF_REDIRECT_URI,
         'response_type': 'code',
-        'scope': 'openid profile inference-api',
-        'state': 'random_state_string'  # CSRF 방지용
+        'scope': 'openid profile inference-api read-billing',
+        'state': 'random_state_string'
     }
     auth_url = f"{HF_AUTHORIZE_URL}?{urlencode(params)}"
     return redirect(auth_url)
 
 @app.route('/callback')
 def callback():
-    # OAuth 콜백 처리
     code = request.args.get('code')
     
     if not code:
         return "Error: No authorization code received", 400
     
-    # Access Token 요청
     token_data = {
         'client_id': HF_CLIENT_ID,
         'client_secret': HF_CLIENT_SECRET,
@@ -65,13 +77,11 @@ def callback():
         if not access_token:
             return "Error: Failed to get access token", 400
         
-        # 사용자 정보 가져오기
         user_headers = {'Authorization': f'Bearer {access_token}'}
         user_response = requests.get(HF_USER_URL, headers=user_headers)
         user_response.raise_for_status()
         user_info = user_response.json()
         
-        # 세션에 저장
         session['access_token'] = access_token
         session['user'] = {
             'name': user_info.get('name', 'User'),
@@ -98,9 +108,29 @@ def check_auth():
         })
     return jsonify({'authenticated': False})
 
+@app.route('/get-billing-info')
+def get_billing_info():
+    access_token = session.get('access_token')
+    
+    if not access_token:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        headers = {'Authorization': f'Bearer {access_token}'}
+        billing_response = requests.get(HF_BILLING_URL, headers=headers)
+        billing_response.raise_for_status()
+        billing_data = billing_response.json()
+        
+        return jsonify({
+            'plan': billing_data.get('plan', 'Free'),
+            'usage': billing_data.get('usage', {}),
+            'limits': billing_data.get('limits', {})
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/chat', methods=['POST'])
 def chat():
-    # 세션에서 access_token 가져오기
     access_token = session.get('access_token')
     
     if not access_token:
@@ -109,6 +139,10 @@ def chat():
     data = request.json
     message = data.get('message')
     conversation_history = data.get('history', [])
+    selected_model = data.get('model', 'gpt-oss-120b')
+    
+    # 선택된 모델 ID 가져오기
+    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'openai/gpt-oss-120b:fireworks-ai')
     
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -119,7 +153,7 @@ def chat():
     
     payload = {
         "messages": messages,
-        "model": "openai/gpt-oss-120b:fireworks-ai",
+        "model": model_id,
         "stream": True,
         "max_tokens": 8000,
         "temperature": 0.7
@@ -150,5 +184,5 @@ def chat():
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))  # 환경변수에서 PORT 읽기
+    port = int(os.getenv('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
