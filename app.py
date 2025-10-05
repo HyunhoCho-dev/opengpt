@@ -15,21 +15,21 @@ HF_AUTHORIZE_URL = "https://huggingface.co/oauth/authorize"
 HF_TOKEN_URL = "https://huggingface.co/oauth/token"
 HF_USER_URL = "https://huggingface.co/api/whoami-v2"
 
-API_URL = "https://router.huggingface.co/v1/chat/completions"
+API_URL = "https://api-inference.huggingface.co/models/"
 
-# 사용 가능한 모델 목록
+# 사용 가능한 모델 목록 (수정됨)
 AVAILABLE_MODELS = {
-    'gpt-oss-120b': {
-        'name': 'GPT-OSS 120B',
-        'id': 'openai/gpt-oss-120b:fireworks-ai'
+    'qwen-2.5-72b': {
+        'name': 'Qwen 2.5 72B Instruct',
+        'id': 'Qwen/Qwen2.5-72B-Instruct'
     },
-    'gpt-oss-20b': {
-        'name': 'GPT-OSS 20B',
-        'id': 'openai/gpt-oss-20b'
+    'llama-3.1-70b': {
+        'name': 'Llama 3.1 70B Instruct',
+        'id': 'meta-llama/Meta-Llama-3.1-70B-Instruct'
     },
-    'gemma-3-12b': {
-        'name': 'Gemma 3 12B',
-        'id': 'google/gemma-3-12b-it'
+    'mistral-nemo': {
+        'name': 'Mistral Nemo Instruct',
+        'id': 'mistralai/Mistral-Nemo-Instruct-2407'
     }
 }
 
@@ -109,8 +109,6 @@ def check_auth():
 
 @app.route('/get-billing-info')
 def get_billing_info():
-    # Billing API는 read-billing scope가 필요하지만
-    # 현재는 기본 정보만 반환 (API 호출 실패 방지)
     return jsonify({
         'plan': 'Standard',
         'usage': {
@@ -131,10 +129,10 @@ def chat():
     data = request.json
     message = data.get('message')
     conversation_history = data.get('history', [])
-    selected_model = data.get('model', 'gpt-oss-120b')
+    selected_model = data.get('model', 'qwen-2.5-72b')
     
     # 선택된 모델 ID 가져오기
-    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'openai/gpt-oss-120b:fireworks-ai')
+    model_id = AVAILABLE_MODELS.get(selected_model, {}).get('id', 'Qwen/Qwen2.5-72B-Instruct')
     
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -144,32 +142,54 @@ def chat():
     messages = conversation_history + [{"role": "user", "content": message}]
     
     payload = {
-        "messages": messages,
-        "model": model_id,
-        "stream": True,
-        "max_tokens": 8000,
-        "temperature": 0.7
+        "inputs": message,
+        "parameters": {
+            "max_new_tokens": 2000,
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "return_full_text": False
+        },
+        "stream": True
     }
     
     def generate():
         try:
-            response = requests.post(API_URL, headers=headers, json=payload, stream=True)
+            response = requests.post(
+                f"{API_URL}{model_id}",
+                headers=headers,
+                json=payload,
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                yield f"data: {json.dumps({'error': f'API Error: {response.status_code}'})}\n\n"
+                return
+            
             for line in response.iter_lines():
                 if not line:
                     continue
-                if line.startswith(b"data:"):
-                    line_data = line.decode("utf-8").lstrip("data:").strip()
-                    if line_data == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(line_data)
-                        if "choices" in chunk and len(chunk["choices"]) > 0:
-                            delta = chunk["choices"][0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError:
-                        continue
+                try:
+                    line_data = line.decode("utf-8")
+                    if line_data.startswith("data:"):
+                        line_data = line_data[5:].strip()
+                    
+                    chunk = json.loads(line_data)
+                    
+                    if isinstance(chunk, list) and len(chunk) > 0:
+                        content = chunk[0].get("generated_text", "")
+                        if content:
+                            yield f"data: {json.dumps({'content': content})}\n\n"
+                    elif "token" in chunk:
+                        content = chunk["token"].get("text", "")
+                        if content:
+                            yield f"data: {json.dumps({'content': content})}\n\n"
+                            
+                except json.JSONDecodeError:
+                    continue
+                except Exception as e:
+                    print(f"Stream error: {e}")
+                    continue
+                    
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
