@@ -196,8 +196,8 @@
         }
 
         .logout-btn:hover {
-            background: #2a2b32;
-            color: #ececf1;
+            background: #ff6b6b;
+            color: #fff;
         }
 
         .main-panel {
@@ -741,9 +741,9 @@
                     <div class="model-selector">
                         <label for="modelSelect">Model:</label>
                         <select id="modelSelect">
-                            <option value="gpt-oss-120b">GPT-OSS 120B (Fireworks)</option>
-                            <option value="gpt-oss-20b">GPT-OSS 20B</option>
-                            <option value="gemma-3-12b">Gemma 3 12B</option>
+                            {% for key, model in models.items() %}
+                            <option value="{{ key }}">{{ model.name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="input-wrapper">
@@ -781,7 +781,6 @@
             });
         }
 
-        // 로컬 스토리지에서 채팅 기록 로드
         function loadChatsFromStorage() {
             const saved = localStorage.getItem('newton_chats');
             if (saved) {
@@ -795,7 +794,6 @@
             }
         }
 
-        // 채팅 목록 렌더링
         function renderChatList() {
             const container = document.getElementById('conversationsList');
             container.innerHTML = '';
@@ -823,7 +821,6 @@
             });
         }
 
-        // 채팅 저장
         function saveCurrentChat() {
             if (conversationHistory.length === 0) return;
             
@@ -850,7 +847,6 @@
             renderChatList();
         }
 
-        // 채팅 로드
         function loadChat(chatId) {
             const chat = savedChats.find(c => c.id === chatId);
             if (!chat) return;
@@ -872,7 +868,6 @@
             scrollToBottom();
         }
 
-        // 채팅 삭제
         function deleteChat(event, index) {
             event.stopPropagation();
             if (confirm('이 채팅을 삭제하시겠습니까?')) {
@@ -902,7 +897,14 @@
 
         function logout() {
             if (confirm('정말 로그아웃하시겠습니까?')) {
-                window.location.href = '/logout';
+                fetch('/logout', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                }).then(() => {
+                    window.location.href = '/login';
+                }).catch(() => {
+                    window.location.href = '/login';
+                });
             }
         }
 
