@@ -36,8 +36,12 @@ AVAILABLE_MODELS = {
 @app.route('/')
 def index():
     if 'access_token' not in session:
-        return redirect(url_for('login'))
+        return redirect(url_for('login_page'))
     return render_template('index.html', user=session.get('user'), models=AVAILABLE_MODELS)
+
+@app.route('/login-page')
+def login_page():
+    return render_template('login.html')
 
 @app.route('/login')
 def login():
@@ -93,12 +97,10 @@ def callback():
     except Exception as e:
         return f"Error during authentication: {str(e)}", 500
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
-    response = redirect(url_for('login'))
-    response.set_cookie('session', '', expires=0)
-    return response
+    return jsonify({'success': True, 'redirect': '/login-page'})
 
 @app.route('/check-auth')
 def check_auth():
@@ -141,13 +143,14 @@ def chat():
         "Content-Type": "application/json"
     }
     
-    # 메시지 포맷 (텍스트만 지원)
+    # 대화 히스토리를 간단한 텍스트 형식으로 변환
     messages = []
     for msg in conversation_history:
         messages.append({
             "role": msg["role"],
             "content": msg["content"]
         })
+    
     messages.append({
         "role": "user",
         "content": message
@@ -157,14 +160,18 @@ def chat():
         "messages": messages,
         "model": model_id,
         "stream": True,
-        "max_tokens": 8000,
+        "max_tokens": 4096,
         "temperature": 0.7
     }
     
     def generate():
         try:
             response = requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60)
-            response.raise_for_status()
+            
+            if response.status_code != 200:
+                error_msg = f"API Error {response.status_code}: {response.text}"
+                yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                return
             
             for line in response.iter_lines():
                 if not line:
@@ -180,7 +187,7 @@ def chat():
                             content = delta.get("content", "")
                             if content:
                                 yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
                         continue
         except requests.exceptions.Timeout:
             yield f"data: {json.dumps({'error': 'Request timeout. Please try again.'})}\n\n"
