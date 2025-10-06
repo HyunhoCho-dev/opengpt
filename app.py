@@ -23,10 +23,10 @@ API_URL = "https://router.huggingface.co/v1/chat/completions"
 AVAILABLE_MODELS = {
     'gpt-oss-120b': {
         'name': 'GPT-OSS 120B',
-        'id': 'openai/gpt-oss-120b:hyperbolic',
+        'id': 'openai/gpt-oss-120b:nscale',
         'supports_image': False,
-        'input_price': 0.3,
-        'output_price': 0.3
+        'input_price': 0.1,
+        'output_price': 0.4
     },
     'gpt-oss-20b': {
         'name': 'GPT-OSS 20B',
@@ -155,7 +155,7 @@ def chat():
     image_data = data.get('image')
     
     model_info = AVAILABLE_MODELS.get(selected_model, {})
-    model_id = model_info.get('id', 'openai/gpt-oss-120b:hyperbolic')
+    model_id = model_info.get('id', 'openai/gpt-oss-120b:nscale')
     supports_image = model_info.get('supports_image', False)
     
     headers = {
@@ -170,6 +170,7 @@ def chat():
             "content": msg["content"]
         })
     
+    # Llama 모델의 Vision 기능 지원
     if supports_image and image_data:
         user_content = [
             {
