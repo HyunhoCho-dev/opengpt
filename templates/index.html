@@ -841,7 +841,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
                                 <div class="model-dropdown" id="modelDropdown">
-                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', 0.3, 0.3, false, this)">GPT-OSS 120B</div>
+                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', 0.1, 0.4, false, this)">GPT-OSS 120B</div>
                                     <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', 0.05, 0.2, false, this)">GPT-OSS 20B</div>
                                     <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', 'Llama 4 Scout', 0.11, 0.34, true, this)">Llama 4 Scout 📷</div>
                                 </div>
@@ -877,7 +877,7 @@
                     </div>
                     <div class="disclaimer">
                         Newton can make mistakes. 
-                        <span class="model-cost" id="modelCostInfo">Input: $0.3/1M • Output: $0.3/1M</span>
+                        <span class="model-cost" id="modelCostInfo">Input: $0.1/1M • Output: $0.4/1M</span>
                     </div>
                 </div>
             </div>
@@ -891,8 +891,8 @@
         let currentChatId = null;
         let selectedImage = null;
         let selectedModel = 'gpt-oss-120b';
-        let currentInputPrice = 0.3;
-        let currentOutputPrice = 0.3;
+        let currentInputPrice = 0.1;
+        let currentOutputPrice = 0.4;
 
         if (typeof marked !== 'undefined') {
             marked.setOptions({
