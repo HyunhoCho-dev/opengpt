@@ -118,7 +118,7 @@
             background: rgba(255,107,107,0.1);
         }
 
-        .billing-info {
+        .usage-info {
             padding: 12px;
             margin: 8px;
             background: #2a2b32;
@@ -127,18 +127,33 @@
             border: 1px solid hsla(0,0%,100%,.1);
         }
 
-        .billing-info .plan-name {
+        .usage-info .usage-title {
             font-weight: 600;
             color: #10a37f;
             margin-bottom: 8px;
             font-size: 13px;
         }
 
-        .billing-info .usage-item {
+        .usage-info .usage-item {
             display: flex;
             justify-content: space-between;
             margin: 4px 0;
             color: #c5c5d2;
+        }
+
+        .usage-bar {
+            width: 100%;
+            height: 4px;
+            background: #40414f;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .usage-fill {
+            height: 100%;
+            background: #10a37f;
+            transition: width 0.3s;
         }
 
         .sidebar-footer {
@@ -152,12 +167,6 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .user-info:hover {
-            background: #2a2b32;
         }
 
         .user-avatar {
@@ -182,22 +191,6 @@
         .user-name {
             font-size: 14px;
             flex: 1;
-        }
-
-        .logout-btn {
-            background: transparent;
-            border: none;
-            color: #8e8ea0;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-
-        .logout-btn:hover {
-            background: #2a2b32;
-            color: #ececf1;
         }
 
         .main-panel {
@@ -349,6 +342,11 @@
             max-width: 100%;
         }
 
+        .message-content * {
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
         .message-content img {
             max-width: 300px;
             border-radius: 8px;
@@ -394,6 +392,7 @@
             font-family: 'Courier New', 'Consolas', monospace;
             font-size: 0.9em;
             color: #e3e3e3;
+            word-break: break-all;
         }
 
         .message-content pre {
@@ -410,6 +409,7 @@
             padding: 0;
             border-radius: 0;
             color: #e3e3e3;
+            word-break: normal;
         }
 
         .message-content table {
@@ -417,6 +417,8 @@
             margin: 16px 0;
             width: 100%;
             border: 1px solid rgba(255,255,255,0.2);
+            display: block;
+            overflow-x: auto;
         }
 
         .message-content th,
@@ -455,6 +457,7 @@
             text-decoration: none;
             border-bottom: 1px solid transparent;
             transition: border-color 0.2s;
+            word-break: break-all;
         }
 
         .message-content a:hover {
@@ -523,25 +526,23 @@
             align-items: center;
         }
 
-        .model-select-btn,
-        .image-upload-btn {
+        .model-select-btn {
             background: transparent;
-            border: none;
-            color: #8e8ea0;
+            border: 1px solid rgba(255,255,255,.1);
+            color: #ececf1;
             cursor: pointer;
-            padding: 8px;
+            padding: 6px 12px;
             border-radius: 6px;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 6px;
             position: relative;
+            font-size: 13px;
         }
 
-        .model-select-btn:hover,
-        .image-upload-btn:hover {
-            background: rgba(255,255,255,0.1);
-            color: #ececf1;
+        .model-select-btn:hover {
+            background: rgba(255,255,255,0.05);
         }
 
         .model-dropdown {
@@ -554,7 +555,7 @@
             border-radius: 8px;
             padding: 4px;
             display: none;
-            min-width: 200px;
+            min-width: 220px;
             z-index: 1000;
         }
 
@@ -577,6 +578,28 @@
         .model-option.active {
             background: #10a37f;
             color: white;
+        }
+
+        .image-upload-btn {
+            background: transparent;
+            border: none;
+            color: #8e8ea0;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-upload-btn.show {
+            display: flex;
+        }
+
+        .image-upload-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #ececf1;
         }
 
         .image-preview-small {
@@ -759,11 +782,18 @@
                 </button>
             </div>
             
-            <div class="billing-info" id="billingInfo">
-                <div class="plan-name">Standard Plan</div>
+            <div class="usage-info" id="usageInfo">
+                <div class="usage-title">Inference Usage</div>
                 <div class="usage-item">
-                    <span>Inference Usage</span>
-                    <span>Available</span>
+                    <span>Used</span>
+                    <span id="usageUsed">Loading...</span>
+                </div>
+                <div class="usage-item">
+                    <span>Limit</span>
+                    <span id="usageLimit">-</span>
+                </div>
+                <div class="usage-bar">
+                    <div class="usage-fill" id="usageFill" style="width: 0%"></div>
                 </div>
             </div>
 
@@ -779,7 +809,6 @@
                         {% endif %}
                     </div>
                     <span class="user-name" id="userName">{{ user.name if user else 'User' }}</span>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
             </div>
         </div>
@@ -821,18 +850,19 @@
                     <div class="input-wrapper">
                         <div class="input-controls">
                             <div class="model-select-btn" onclick="toggleModelDropdown()">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                <span id="currentModelName">GPT-OSS 120B</span>
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
                                 <div class="model-dropdown" id="modelDropdown">
-                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', this)">GPT-OSS 120B</div>
-                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', this)">GPT-OSS 20B</div>
-                                    <div class="model-option" data-model="gemma-3-12b" onclick="selectModel('gemma-3-12b', this)">Gemma 3 12B 📷</div>
-                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', this)">Llama 4 Scout 📷</div>
+                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', this)">GPT-OSS 120B</div>
+                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', this)">GPT-OSS 20B</div>
+                                    <div class="model-option" data-model="gemma-3-12b" onclick="selectModel('gemma-3-12b', 'Gemma 3 12B', this)">Gemma 3 12B 📷</div>
+                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', 'Llama 4 Scout', this)">Llama 4 Scout 📷</div>
                                 </div>
                             </div>
                             
-                            <div class="image-upload-btn" id="imageUploadBtn" style="display: none;" onclick="document.getElementById('imageInput').click()">
+                            <div class="image-upload-btn" id="imageUploadBtn" onclick="document.getElementById('imageInput').click()">
                                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                 </svg>
@@ -883,6 +913,33 @@
             });
         }
 
+        async function loadUsageInfo() {
+            try {
+                const response = await fetch('/get-usage-info');
+                const data = await response.json();
+                
+                if (data.inference) {
+                    const used = data.inference.used || 0;
+                    const limit = data.inference.limit || 'Unknown';
+                    
+                    document.getElementById('usageUsed').textContent = used.toLocaleString();
+                    document.getElementById('usageLimit').textContent = limit === 'Unlimited' ? 'Unlimited' : limit.toLocaleString();
+                    
+                    if (limit !== 'Unlimited' && limit !== 'Unknown') {
+                        const percentage = Math.min((used / limit) * 100, 100);
+                        document.getElementById('usageFill').style.width = percentage + '%';
+                    }
+                } else {
+                    document.getElementById('usageUsed').textContent = '0';
+                    document.getElementById('usageLimit').textContent = 'Available';
+                }
+            } catch (error) {
+                console.error('Failed to load usage info:', error);
+                document.getElementById('usageUsed').textContent = '-';
+                document.getElementById('usageLimit').textContent = '-';
+            }
+        }
+
         function toggleModelDropdown() {
             const dropdown = document.getElementById('modelDropdown');
             dropdown.classList.toggle('show');
@@ -895,17 +952,18 @@
             });
         }
 
-        function selectModel(model, element) {
+        function selectModel(model, modelName, element) {
             selectedModel = model;
+            document.getElementById('currentModelName').textContent = modelName;
             
             document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
             element.classList.add('active');
             
             const imageBtn = document.getElementById('imageUploadBtn');
             if (model === 'gemma-3-12b' || model === 'llama-4-scout') {
-                imageBtn.style.display = 'flex';
+                imageBtn.classList.add('show');
             } else {
-                imageBtn.style.display = 'none';
+                imageBtn.classList.remove('show');
                 removeImage();
             }
             
@@ -1044,38 +1102,6 @@
                 overlay.classList.toggle('show');
             } else {
                 sidebar.classList.toggle('collapsed');
-            }
-        }
-
-        function logout() {
-            if (confirm('정말 로그아웃하시겠습니까?')) {
-                // HuggingFace에서도 로그아웃하기 위해 새 창으로 로그아웃 URL 열기
-                const logoutWindow = window.open('https://huggingface.co/logout', '_blank', 'width=600,height=400');
-                
-                setTimeout(() => {
-                    if (logoutWindow) {
-                        logoutWindow.close();
-                    }
-                }, 2000);
-                
-                // 로컬 세션 로그아웃
-                fetch('/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'same-origin'
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        window.location.href = data.redirect;
-                    }
-                })
-                .catch(error => {
-                    console.error('Logout error:', error);
-                    window.location.href = '/login-page';
-                });
             }
         }
 
@@ -1257,6 +1283,7 @@
                 conversationHistory.push({ role: 'assistant', content: fullResponse });
                 saveCurrentChat();
                 removeImage();
+                loadUsageInfo();
 
             } catch (error) {
                 removeTyping();
@@ -1285,6 +1312,7 @@
                     window.location.href = '/login-page';
                 } else {
                     loadChatsFromStorage();
+                    loadUsageInfo();
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
@@ -1294,4 +1322,3 @@
     </script>
 </body>
 </html>
-
