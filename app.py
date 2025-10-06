@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify, Response, stream_wit
 import requests
 import json
 import os
-import base64
 from urllib.parse import urlencode
 
 app = Flask(__name__)
@@ -24,23 +23,14 @@ AVAILABLE_MODELS = {
     'gpt-oss-120b': {
         'name': 'GPT-OSS 120B',
         'id': 'openai/gpt-oss-120b:nscale',
-        'supports_image': False,
         'input_price': 0.1,
         'output_price': 0.4
     },
     'gpt-oss-20b': {
         'name': 'GPT-OSS 20B',
         'id': 'openai/gpt-oss-20b:nscale',
-        'supports_image': False,
         'input_price': 0.05,
         'output_price': 0.2
-    },
-    'llama-4-scout': {
-        'name': 'Llama 4 Scout 17B',
-        'id': 'meta-llama/Llama-4-Scout-17B-16E-Instruct:groq',
-        'supports_image': True,
-        'input_price': 0.11,
-        'output_price': 0.34
     }
 }
 
@@ -152,11 +142,9 @@ def chat():
     message = data.get('message')
     conversation_history = data.get('history', [])
     selected_model = data.get('model', 'gpt-oss-120b')
-    image_data = data.get('image')
     
     model_info = AVAILABLE_MODELS.get(selected_model, {})
     model_id = model_info.get('id', 'openai/gpt-oss-120b:nscale')
-    supports_image = model_info.get('supports_image', False)
     
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -170,29 +158,10 @@ def chat():
             "content": msg["content"]
         })
     
-    # Llama 모델의 Vision 기능 지원
-    if supports_image and image_data:
-        user_content = [
-            {
-                "type": "text",
-                "text": message
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": image_data
-                }
-            }
-        ]
-        messages.append({
-            "role": "user",
-            "content": user_content
-        })
-    else:
-        messages.append({
-            "role": "user",
-            "content": message
-        })
+    messages.append({
+        "role": "user",
+        "content": message
+    })
     
     payload = {
         "messages": messages,
