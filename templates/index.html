@@ -571,65 +571,6 @@
             color: white;
         }
 
-        .image-upload-btn {
-            background: transparent;
-            border: none;
-            color: #8e8ea0;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 6px;
-            transition: all 0.2s;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .image-upload-btn.show {
-            display: flex;
-        }
-
-        .image-upload-btn:hover {
-            background: rgba(255,255,255,0.1);
-            color: #ececf1;
-        }
-
-        .image-preview-small {
-            display: none;
-            max-width: 50px;
-            max-height: 50px;
-            border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .image-preview-small.show {
-            display: block;
-        }
-
-        .remove-image-btn {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            width: 18px;
-            height: 18px;
-            background: #ff6b6b;
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 10px;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .image-preview-container {
-            position: relative;
-        }
-
-        .image-preview-container:hover .remove-image-btn {
-            display: flex;
-        }
-
         .chat-input {
             flex: 1;
             background: transparent;
@@ -841,23 +782,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
                                 <div class="model-dropdown" id="modelDropdown">
-                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', 0.1, 0.4, false, this)">GPT-OSS 120B</div>
-                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', 0.05, 0.2, false, this)">GPT-OSS 20B</div>
-                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', 'Llama 4 Scout', 0.11, 0.34, true, this)">Llama 4 Scout 📷</div>
+                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', 0.1, 0.4, this)">GPT-OSS 120B</div>
+                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', 0.05, 0.2, this)">GPT-OSS 20B</div>
                                 </div>
-                            </div>
-                            
-                            <div class="image-upload-btn" id="imageUploadBtn" onclick="document.getElementById('imageInput').click()">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
-                            </div>
-                            
-                            <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                            
-                            <div class="image-preview-container" style="display: none;" id="imagePreviewContainer">
-                                <img id="imagePreviewSmall" class="image-preview-small" src="" alt="Preview">
-                                <button class="remove-image-btn" onclick="removeImage()">×</button>
                             </div>
                         </div>
                         
@@ -889,7 +816,6 @@
         let isLoading = false;
         let savedChats = [];
         let currentChatId = null;
-        let selectedImage = null;
         let selectedModel = 'gpt-oss-120b';
         let currentInputPrice = 0.1;
         let currentOutputPrice = 0.4;
@@ -941,7 +867,7 @@
             });
         }
 
-        function selectModel(model, modelName, inputPrice, outputPrice, supportsImage, element) {
+        function selectModel(model, modelName, inputPrice, outputPrice, element) {
             selectedModel = model;
             currentInputPrice = inputPrice;
             currentOutputPrice = outputPrice;
@@ -952,36 +878,7 @@
             document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
             element.classList.add('active');
             
-            const imageBtn = document.getElementById('imageUploadBtn');
-            if (supportsImage) {
-                imageBtn.classList.add('show');
-            } else {
-                imageBtn.classList.remove('show');
-                removeImage();
-            }
-            
             document.getElementById('modelDropdown').classList.remove('show');
-        }
-
-        function handleImageSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                selectedImage = e.target.result;
-                document.getElementById('imagePreviewSmall').src = selectedImage;
-                document.getElementById('imagePreviewSmall').classList.add('show');
-                document.getElementById('imagePreviewContainer').style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removeImage() {
-            selectedImage = null;
-            document.getElementById('imageInput').value = '';
-            document.getElementById('imagePreviewSmall').classList.remove('show');
-            document.getElementById('imagePreviewContainer').style.display = 'none';
         }
 
         function loadChatsFromStorage() {
@@ -1104,7 +1001,6 @@
             document.getElementById('messagesContainer').innerHTML = '';
             document.getElementById('messagesContainer').style.display = 'none';
             document.getElementById('emptyState').style.display = 'flex';
-            removeImage();
             renderChatList();
             
             if (window.innerWidth <= 768) {
@@ -1194,13 +1090,7 @@
             document.getElementById('emptyState').style.display = 'none';
             document.getElementById('messagesContainer').style.display = 'block';
 
-            const userMessageDiv = addMessage('user', message, false);
-            
-            if (selectedImage) {
-                const img = document.createElement('img');
-                img.src = selectedImage;
-                userMessageDiv.appendChild(img);
-            }
+            addMessage('user', message, false);
             
             input.value = '';
             input.style.height = 'auto';
@@ -1217,10 +1107,6 @@
                     history: conversationHistory.slice(0, -1),
                     model: selectedModel
                 };
-                
-                if (selectedImage && selectedModel === 'llama-4-scout') {
-                    requestData.image = selectedImage;
-                }
 
                 const response = await fetch('/chat', {
                     method: 'POST',
@@ -1275,7 +1161,6 @@
 
                 conversationHistory.push({ role: 'assistant', content: fullResponse });
                 saveCurrentChat();
-                removeImage();
 
             } catch (error) {
                 removeTyping();
@@ -1314,4 +1199,3 @@
     </script>
 </body>
 </html>
-
