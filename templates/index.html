@@ -118,7 +118,7 @@
             background: rgba(255,107,107,0.1);
         }
 
-        .usage-info {
+        .subscription-info {
             padding: 12px;
             margin: 8px;
             background: #2a2b32;
@@ -127,33 +127,24 @@
             border: 1px solid hsla(0,0%,100%,.1);
         }
 
-        .usage-info .usage-title {
-            font-weight: 600;
-            color: #10a37f;
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-
-        .usage-info .usage-item {
-            display: flex;
-            justify-content: space-between;
-            margin: 4px 0;
-            color: #c5c5d2;
-        }
-
-        .usage-bar {
-            width: 100%;
-            height: 4px;
-            background: #40414f;
-            border-radius: 2px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-
-        .usage-fill {
-            height: 100%;
+        .subscription-info .plan-badge {
+            display: inline-block;
+            padding: 4px 12px;
             background: #10a37f;
-            transition: width 0.3s;
+            color: white;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .subscription-info .plan-badge.free {
+            background: #565869;
+        }
+
+        .subscription-info .cost-info {
+            color: #c5c5d2;
+            font-size: 11px;
         }
 
         .sidebar-footer {
@@ -689,6 +680,11 @@
             margin-top: 12px;
         }
 
+        .model-cost {
+            color: #10a37f;
+            font-weight: 500;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -782,19 +778,9 @@
                 </button>
             </div>
             
-            <div class="usage-info" id="usageInfo">
-                <div class="usage-title">Inference Usage</div>
-                <div class="usage-item">
-                    <span>Used</span>
-                    <span id="usageUsed">Loading...</span>
-                </div>
-                <div class="usage-item">
-                    <span>Limit</span>
-                    <span id="usageLimit">-</span>
-                </div>
-                <div class="usage-bar">
-                    <div class="usage-fill" id="usageFill" style="width: 0%"></div>
-                </div>
+            <div class="subscription-info" id="subscriptionInfo">
+                <div class="plan-badge free" id="planBadge">Free</div>
+                <div class="cost-info" id="costInfo">0.1$/day</div>
             </div>
 
             <div class="conversations" id="conversationsList"></div>
@@ -855,10 +841,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
                                 <div class="model-dropdown" id="modelDropdown">
-                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', this)">GPT-OSS 120B</div>
-                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', this)">GPT-OSS 20B</div>
-                                    <div class="model-option" data-model="gemma-3-12b" onclick="selectModel('gemma-3-12b', 'Gemma 3 12B', this)">Gemma 3 12B 📷</div>
-                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', 'Llama 4 Scout', this)">Llama 4 Scout 📷</div>
+                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', 'GPT-OSS 120B', 0.3, 0.3, false, this)">GPT-OSS 120B</div>
+                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', 'GPT-OSS 20B', 0.05, 0.2, false, this)">GPT-OSS 20B</div>
+                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', 'Llama 4 Scout', 0.11, 0.34, true, this)">Llama 4 Scout 📷</div>
                                 </div>
                             </div>
                             
@@ -890,7 +875,10 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="disclaimer">Newton can make mistakes. Consider checking important information.</div>
+                    <div class="disclaimer">
+                        Newton can make mistakes. 
+                        <span class="model-cost" id="modelCostInfo">Input: $0.3/1M • Output: $0.3/1M</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -903,6 +891,8 @@
         let currentChatId = null;
         let selectedImage = null;
         let selectedModel = 'gpt-oss-120b';
+        let currentInputPrice = 0.3;
+        let currentOutputPrice = 0.3;
 
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -913,31 +903,30 @@
             });
         }
 
-        async function loadUsageInfo() {
+        async function loadSubscriptionInfo() {
             try {
-                const response = await fetch('/get-usage-info');
+                const response = await fetch('/get-subscription-info');
                 const data = await response.json();
                 
-                if (data.inference) {
-                    const used = data.inference.used || 0;
-                    const limit = data.inference.limit || 'Unknown';
-                    
-                    document.getElementById('usageUsed').textContent = used.toLocaleString();
-                    document.getElementById('usageLimit').textContent = limit === 'Unlimited' ? 'Unlimited' : limit.toLocaleString();
-                    
-                    if (limit !== 'Unlimited' && limit !== 'Unknown') {
-                        const percentage = Math.min((used / limit) * 100, 100);
-                        document.getElementById('usageFill').style.width = percentage + '%';
-                    }
+                const planBadge = document.getElementById('planBadge');
+                const costInfo = document.getElementById('costInfo');
+                
+                planBadge.textContent = data.plan || 'Free';
+                costInfo.textContent = data.cost || '0.1$/day';
+                
+                if (data.plan === 'Pro') {
+                    planBadge.classList.remove('free');
                 } else {
-                    document.getElementById('usageUsed').textContent = '0';
-                    document.getElementById('usageLimit').textContent = 'Available';
+                    planBadge.classList.add('free');
                 }
             } catch (error) {
-                console.error('Failed to load usage info:', error);
-                document.getElementById('usageUsed').textContent = '-';
-                document.getElementById('usageLimit').textContent = '-';
+                console.error('Failed to load subscription info:', error);
             }
+        }
+
+        function updateCostDisplay(inputPrice, outputPrice) {
+            const costInfo = document.getElementById('modelCostInfo');
+            costInfo.textContent = `Input: ${inputPrice}/1M • Output: ${outputPrice}/1M`;
         }
 
         function toggleModelDropdown() {
@@ -952,15 +941,19 @@
             });
         }
 
-        function selectModel(model, modelName, element) {
+        function selectModel(model, modelName, inputPrice, outputPrice, supportsImage, element) {
             selectedModel = model;
+            currentInputPrice = inputPrice;
+            currentOutputPrice = outputPrice;
+            
             document.getElementById('currentModelName').textContent = modelName;
+            updateCostDisplay(inputPrice, outputPrice);
             
             document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
             element.classList.add('active');
             
             const imageBtn = document.getElementById('imageUploadBtn');
-            if (model === 'gemma-3-12b' || model === 'llama-4-scout') {
+            if (supportsImage) {
                 imageBtn.classList.add('show');
             } else {
                 imageBtn.classList.remove('show');
@@ -1225,7 +1218,7 @@
                     model: selectedModel
                 };
                 
-                if (selectedImage && (selectedModel === 'gemma-3-12b' || selectedModel === 'llama-4-scout')) {
+                if (selectedImage && selectedModel === 'llama-4-scout') {
                     requestData.image = selectedImage;
                 }
 
@@ -1283,7 +1276,6 @@
                 conversationHistory.push({ role: 'assistant', content: fullResponse });
                 saveCurrentChat();
                 removeImage();
-                loadUsageInfo();
 
             } catch (error) {
                 removeTyping();
@@ -1312,7 +1304,7 @@
                     window.location.href = '/login-page';
                 } else {
                     loadChatsFromStorage();
-                    loadUsageInfo();
+                    loadSubscriptionInfo();
                 }
             } catch (error) {
                 console.error('Auth check failed:', error);
