@@ -15,6 +15,7 @@ HF_REDIRECT_URI = os.getenv('HF_REDIRECT_URI', 'http://127.0.0.1:5000/callback')
 HF_AUTHORIZE_URL = "https://huggingface.co/oauth/authorize"
 HF_TOKEN_URL = "https://huggingface.co/oauth/token"
 HF_USER_URL = "https://huggingface.co/api/whoami-v2"
+HF_USAGE_URL = "https://huggingface.co/api/usage"
 
 API_URL = "https://router.huggingface.co/v1/chat/completions"
 
@@ -106,11 +107,6 @@ def callback():
     except Exception as e:
         return f"Error during authentication: {str(e)}", 500
 
-@app.route('/logout', methods=['POST'])
-def logout():
-    session.clear()
-    return jsonify({'success': True, 'redirect': '/login-page'})
-
 @app.route('/check-auth')
 def check_auth():
     if 'access_token' in session:
@@ -120,17 +116,35 @@ def check_auth():
         })
     return jsonify({'authenticated': False})
 
-@app.route('/get-billing-info')
-def get_billing_info():
-    return jsonify({
-        'plan': 'Standard',
-        'usage': {
+@app.route('/get-usage-info')
+def get_usage_info():
+    access_token = session.get('access_token')
+    
+    if not access_token:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        headers = {'Authorization': f'Bearer {access_token}'}
+        usage_response = requests.get(HF_USAGE_URL, headers=headers)
+        
+        if usage_response.status_code == 200:
+            usage_data = usage_response.json()
+            return jsonify(usage_data)
+        else:
+            # 사용량 정보를 가져올 수 없는 경우 기본값 반환
+            return jsonify({
+                'inference': {
+                    'used': 0,
+                    'limit': 'Unlimited'
+                }
+            })
+    except Exception as e:
+        return jsonify({
             'inference': {
                 'used': 0,
-                'limit': 1000
+                'limit': 'Unknown'
             }
-        }
-    })
+        })
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -143,9 +157,8 @@ def chat():
     message = data.get('message')
     conversation_history = data.get('history', [])
     selected_model = data.get('model', 'gpt-oss-120b')
-    image_data = data.get('image')  # base64 인코딩된 이미지
+    image_data = data.get('image')
     
-    # 선택된 모델 정보 가져오기
     model_info = AVAILABLE_MODELS.get(selected_model, {})
     model_id = model_info.get('id', 'openai/gpt-oss-120b:fireworks-ai')
     supports_image = model_info.get('supports_image', False)
@@ -155,7 +168,6 @@ def chat():
         "Content-Type": "application/json"
     }
     
-    # 대화 히스토리 변환
     messages = []
     for msg in conversation_history:
         messages.append({
@@ -163,9 +175,7 @@ def chat():
             "content": msg["content"]
         })
     
-    # 현재 메시지 구성
     if supports_image and image_data:
-        # 이미지를 지원하는 모델의 경우
         user_content = [
             {
                 "type": "text",
@@ -174,7 +184,7 @@ def chat():
             {
                 "type": "image_url",
                 "image_url": {
-                    "url": image_data  # data:image/jpeg;base64,... 형식
+                    "url": image_data
                 }
             }
         ]
@@ -183,7 +193,6 @@ def chat():
             "content": user_content
         })
     else:
-        # 텍스트만 지원하는 모델
         messages.append({
             "role": "user",
             "content": message
