@@ -15,7 +15,7 @@ HF_REDIRECT_URI = os.getenv('HF_REDIRECT_URI', 'http://127.0.0.1:5000/callback')
 HF_AUTHORIZE_URL = "https://huggingface.co/oauth/authorize"
 HF_TOKEN_URL = "https://huggingface.co/oauth/token"
 HF_USER_URL = "https://huggingface.co/api/whoami-v2"
-HF_USAGE_URL = "https://huggingface.co/api/usage"
+HF_SUBSCRIPTION_URL = "https://huggingface.co/api/subscription"
 
 API_URL = "https://router.huggingface.co/v1/chat/completions"
 
@@ -23,23 +23,24 @@ API_URL = "https://router.huggingface.co/v1/chat/completions"
 AVAILABLE_MODELS = {
     'gpt-oss-120b': {
         'name': 'GPT-OSS 120B',
-        'id': 'openai/gpt-oss-120b:fireworks-ai',
-        'supports_image': False
+        'id': 'openai/gpt-oss-120b:hyperbolic',
+        'supports_image': False,
+        'input_price': 0.3,
+        'output_price': 0.3
     },
     'gpt-oss-20b': {
         'name': 'GPT-OSS 20B',
-        'id': 'openai/gpt-oss-20b',
-        'supports_image': False
-    },
-    'gemma-3-12b': {
-        'name': 'Gemma 3 12B',
-        'id': 'google/gemma-3-12b-it:featherless-ai',
-        'supports_image': True
+        'id': 'openai/gpt-oss-20b:nscale',
+        'supports_image': False,
+        'input_price': 0.05,
+        'output_price': 0.2
     },
     'llama-4-scout': {
         'name': 'Llama 4 Scout 17B',
-        'id': 'meta-llama/Llama-4-Scout-17B-16E-Instruct:fireworks-ai',
-        'supports_image': True
+        'id': 'meta-llama/Llama-4-Scout-17B-16E-Instruct:groq',
+        'supports_image': True,
+        'input_price': 0.11,
+        'output_price': 0.34
     }
 }
 
@@ -116,8 +117,8 @@ def check_auth():
         })
     return jsonify({'authenticated': False})
 
-@app.route('/get-usage-info')
-def get_usage_info():
+@app.route('/get-subscription-info')
+def get_subscription_info():
     access_token = session.get('access_token')
     
     if not access_token:
@@ -125,26 +126,20 @@ def get_usage_info():
     
     try:
         headers = {'Authorization': f'Bearer {access_token}'}
-        usage_response = requests.get(HF_USAGE_URL, headers=headers)
+        sub_response = requests.get(HF_SUBSCRIPTION_URL, headers=headers)
         
-        if usage_response.status_code == 200:
-            usage_data = usage_response.json()
-            return jsonify(usage_data)
+        if sub_response.status_code == 200:
+            sub_data = sub_response.json()
+            plan = sub_data.get('plan', 'free')
+            
+            if plan.lower() in ['pro', 'enterprise']:
+                return jsonify({'plan': 'Pro', 'cost': '2$/day'})
+            else:
+                return jsonify({'plan': 'Free', 'cost': '0.1$/day'})
         else:
-            # 사용량 정보를 가져올 수 없는 경우 기본값 반환
-            return jsonify({
-                'inference': {
-                    'used': 0,
-                    'limit': 'Unlimited'
-                }
-            })
+            return jsonify({'plan': 'Free', 'cost': '0.1$/day'})
     except Exception as e:
-        return jsonify({
-            'inference': {
-                'used': 0,
-                'limit': 'Unknown'
-            }
-        })
+        return jsonify({'plan': 'Free', 'cost': '0.1$/day'})
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -160,7 +155,7 @@ def chat():
     image_data = data.get('image')
     
     model_info = AVAILABLE_MODELS.get(selected_model, {})
-    model_id = model_info.get('id', 'openai/gpt-oss-120b:fireworks-ai')
+    model_id = model_info.get('id', 'openai/gpt-oss-120b:hyperbolic')
     supports_image = model_info.get('supports_image', False)
     
     headers = {
