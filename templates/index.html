@@ -344,7 +344,9 @@
             line-height: 1.75;
             font-size: 15px;
             word-wrap: break-word;
-            padding-right: 40px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
         }
 
         .message-content img {
@@ -503,96 +505,119 @@
             position: relative;
         }
 
-        .model-selector {
-            margin-bottom: 12px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .model-selector label {
-            font-size: 13px;
-            color: #8e8ea0;
-        }
-
-        .model-selector select {
-            flex: 1;
-            padding: 8px 12px;
-            background: #40414f;
-            border: 1px solid rgba(255,255,255,.1);
-            border-radius: 6px;
-            color: #ececf1;
-            font-size: 13px;
-            cursor: pointer;
-            outline: none;
-        }
-
-        .model-selector select:hover {
-            background: #505363;
-        }
-
-        .image-upload-section {
-            margin-bottom: 12px;
-            display: none;
-        }
-
-        .image-upload-section.show {
-            display: block;
-        }
-
-        .image-upload-btn {
-            padding: 8px 16px;
-            background: #40414f;
-            border: 1px solid rgba(255,255,255,.1);
-            border-radius: 6px;
-            color: #ececf1;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .image-upload-btn:hover {
-            background: #505363;
-        }
-
-        .image-preview {
-            margin-top: 8px;
-            display: none;
-        }
-
-        .image-preview.show {
-            display: block;
-        }
-
-        .image-preview img {
-            max-width: 200px;
-            max-height: 200px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,.1);
-        }
-
-        .image-preview .remove-image {
-            margin-top: 8px;
-            padding: 4px 12px;
-            background: #ff6b6b;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
         .input-wrapper {
             position: relative;
             background: #40414f;
             border-radius: 12px;
             box-shadow: 0 0 15px rgba(0,0,0,.1);
             border: 1px solid rgba(255,255,255,.05);
+            display: flex;
+            align-items: flex-end;
+            padding: 12px;
+            gap: 8px;
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .model-select-btn,
+        .image-upload-btn {
+            background: transparent;
+            border: none;
+            color: #8e8ea0;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .model-select-btn:hover,
+        .image-upload-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #ececf1;
+        }
+
+        .model-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background: #2a2b32;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 4px;
+            display: none;
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .model-dropdown.show {
+            display: block;
+        }
+
+        .model-option {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .model-option:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .model-option.active {
+            background: #10a37f;
+            color: white;
+        }
+
+        .image-preview-small {
+            display: none;
+            max-width: 50px;
+            max-height: 50px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .image-preview-small.show {
+            display: block;
+        }
+
+        .remove-image-btn {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 18px;
+            height: 18px;
+            background: #ff6b6b;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 10px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-container {
+            position: relative;
+        }
+
+        .image-preview-container:hover .remove-image-btn {
+            display: flex;
         }
 
         .chat-input {
-            width: 100%;
-            padding: 16px 52px 16px 16px;
+            flex: 1;
             background: transparent;
             border: none;
             color: #ececf1;
@@ -603,6 +628,7 @@
             line-height: 1.5;
             max-height: 200px;
             overflow-y: auto;
+            min-height: 24px;
         }
 
         .chat-input::placeholder {
@@ -610,9 +636,6 @@
         }
 
         .send-button {
-            position: absolute;
-            right: 12px;
-            bottom: 12px;
             width: 32px;
             height: 32px;
             background: #19c37d;
@@ -623,6 +646,7 @@
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+            flex-shrink: 0;
         }
 
         .send-button:hover:not(:disabled) {
@@ -703,7 +727,6 @@
             }
 
             .message-content {
-                padding-right: 0;
                 font-size: 14px;
             }
 
@@ -795,28 +818,34 @@
 
             <div class="input-section">
                 <div class="input-container">
-                    <div class="model-selector">
-                        <label for="modelSelect">Model:</label>
-                        <select id="modelSelect" onchange="handleModelChange()">
-                            <option value="gpt-oss-120b">GPT-OSS 120B (Fireworks)</option>
-                            <option value="gpt-oss-20b">GPT-OSS 20B</option>
-                            <option value="gemma-3-12b">Gemma 3 12B (Vision)</option>
-                            <option value="llama-4-scout">Llama 4 Scout 17B (Vision)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="image-upload-section" id="imageUploadSection">
-                        <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                        <button class="image-upload-btn" onclick="document.getElementById('imageInput').click()">
-                            📷 Upload Image
-                        </button>
-                        <div class="image-preview" id="imagePreview">
-                            <img id="previewImg" src="" alt="Preview">
-                            <button class="remove-image" onclick="removeImage()">Remove</button>
-                        </div>
-                    </div>
-                    
                     <div class="input-wrapper">
+                        <div class="input-controls">
+                            <div class="model-select-btn" onclick="toggleModelDropdown()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                </svg>
+                                <div class="model-dropdown" id="modelDropdown">
+                                    <div class="model-option active" data-model="gpt-oss-120b" onclick="selectModel('gpt-oss-120b', this)">GPT-OSS 120B</div>
+                                    <div class="model-option" data-model="gpt-oss-20b" onclick="selectModel('gpt-oss-20b', this)">GPT-OSS 20B</div>
+                                    <div class="model-option" data-model="gemma-3-12b" onclick="selectModel('gemma-3-12b', this)">Gemma 3 12B 📷</div>
+                                    <div class="model-option" data-model="llama-4-scout" onclick="selectModel('llama-4-scout', this)">Llama 4 Scout 📷</div>
+                                </div>
+                            </div>
+                            
+                            <div class="image-upload-btn" id="imageUploadBtn" style="display: none;" onclick="document.getElementById('imageInput').click()">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            
+                            <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                            
+                            <div class="image-preview-container" style="display: none;" id="imagePreviewContainer">
+                                <img id="imagePreviewSmall" class="image-preview-small" src="" alt="Preview">
+                                <button class="remove-image-btn" onclick="removeImage()">×</button>
+                            </div>
+                        </div>
+                        
                         <textarea 
                             id="chatInput" 
                             class="chat-input" 
@@ -824,6 +853,7 @@
                             rows="1"
                             onkeydown="handleKeyDown(event)"
                             oninput="autoResize(this)"></textarea>
+                        
                         <button class="send-button" id="sendBtn" onclick="sendMessage()">
                             <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -842,6 +872,7 @@
         let savedChats = [];
         let currentChatId = null;
         let selectedImage = null;
+        let selectedModel = 'gpt-oss-120b';
 
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -852,16 +883,33 @@
             });
         }
 
-        function handleModelChange() {
-            const model = document.getElementById('modelSelect').value;
-            const imageSection = document.getElementById('imageUploadSection');
+        function toggleModelDropdown() {
+            const dropdown = document.getElementById('modelDropdown');
+            dropdown.classList.toggle('show');
             
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!e.target.closest('.model-select-btn')) {
+                    dropdown.classList.remove('show');
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }
+
+        function selectModel(model, element) {
+            selectedModel = model;
+            
+            document.querySelectorAll('.model-option').forEach(opt => opt.classList.remove('active'));
+            element.classList.add('active');
+            
+            const imageBtn = document.getElementById('imageUploadBtn');
             if (model === 'gemma-3-12b' || model === 'llama-4-scout') {
-                imageSection.classList.add('show');
+                imageBtn.style.display = 'flex';
             } else {
-                imageSection.classList.remove('show');
+                imageBtn.style.display = 'none';
                 removeImage();
             }
+            
+            document.getElementById('modelDropdown').classList.remove('show');
         }
 
         function handleImageSelect(event) {
@@ -871,8 +919,9 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 selectedImage = e.target.result;
-                document.getElementById('previewImg').src = selectedImage;
-                document.getElementById('imagePreview').classList.add('show');
+                document.getElementById('imagePreviewSmall').src = selectedImage;
+                document.getElementById('imagePreviewSmall').classList.add('show');
+                document.getElementById('imagePreviewContainer').style.display = 'block';
             };
             reader.readAsDataURL(file);
         }
@@ -880,7 +929,8 @@
         function removeImage() {
             selectedImage = null;
             document.getElementById('imageInput').value = '';
-            document.getElementById('imagePreview').classList.remove('show');
+            document.getElementById('imagePreviewSmall').classList.remove('show');
+            document.getElementById('imagePreviewContainer').style.display = 'none';
         }
 
         function loadChatsFromStorage() {
@@ -999,6 +1049,16 @@
 
         function logout() {
             if (confirm('정말 로그아웃하시겠습니까?')) {
+                // HuggingFace에서도 로그아웃하기 위해 새 창으로 로그아웃 URL 열기
+                const logoutWindow = window.open('https://huggingface.co/logout', '_blank', 'width=600,height=400');
+                
+                setTimeout(() => {
+                    if (logoutWindow) {
+                        logoutWindow.close();
+                    }
+                }, 2000);
+                
+                // 로컬 세션 로그아웃
                 fetch('/logout', {
                     method: 'POST',
                     headers: {
@@ -1109,7 +1169,6 @@
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
-            const selectedModel = document.getElementById('modelSelect').value;
             
             if (!message || isLoading) return;
 
@@ -1118,7 +1177,6 @@
 
             const userMessageDiv = addMessage('user', message, false);
             
-            // 이미지가 있으면 표시
             if (selectedImage) {
                 const img = document.createElement('img');
                 img.src = selectedImage;
@@ -1236,3 +1294,4 @@
     </script>
 </body>
 </html>
+
